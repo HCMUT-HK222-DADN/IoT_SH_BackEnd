@@ -1,0 +1,7 @@
+{
+    "ADAFRUIT_IO_KEY" : "aio_fuMY34SieCd21gBVy95vuuMobsq7",
+    "ADAFRUIT_IO_USERNAME" : "HiepNgo",
+    "FEED_ID" : {
+        "led" : "bbc-led"
+    }
+}
