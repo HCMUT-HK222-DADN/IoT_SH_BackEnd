@@ -73,7 +73,7 @@ class SensorData(models.Model):
     time = models.DateTimeField(auto_now_add=True)
 
 # Các time_start, time_end trong các class bên dưới cần phải sửa lại.
-# Giải pháp time_start có thể là auto_now_add, time_end có thể là auto_now, time_trigger = time_end - time_start
+# Giải pháp time_start có thể là auto_now_add, time_end có thể là auto_now
 # Ràng buộc về time_end > time_start cần gọi validator (chưa hiện thực được)
 
 ###################### Weak entity of User ######################
@@ -85,28 +85,6 @@ class RestReco(models.Model):
     rest_inter = models.CharField(max_length=100, null=False)
 
 class SessionHst(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    time_start = models.DateTimeField(auto_now=True, null=False)
-    time_end = models.DateTimeField(auto_now=True, null=False)
-
-class AlarmReco(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    time_trigger = models.DateTimeField(auto_now=True, null=True) # time_trigger có thể NULL vì lúc khởi đầu chưa biết được giá trị
-    time_start = models.DateTimeField(auto_now=True, null=False)
-    time_end = models.DateTimeField(auto_now=True, null=False)
-
-class SleepHst(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    time_start = models.DateTimeField(auto_now=True, null=False)
-    time_end = models.DateTimeField(auto_now=True, null=False)
-
-class AlarmHst(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    time_trigger = models.DateTimeField(auto_now=True, null=True) # time_trigger có thể NULL vì lúc khởi đầu chưa biết được giá trị
-    time_start = models.DateTimeField(auto_now=True, null=False)
-    time_end = models.DateTimeField(auto_now=True, null=False)
-
-class SleepReco(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     time_start = models.DateTimeField(auto_now=True, null=False)
     time_end = models.DateTimeField(auto_now=True, null=False)
@@ -126,7 +104,7 @@ class SetDevice(models.Model):
 class PassInput(models.Model):
     device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    passwordInput = models.CharField(max_length=50, null=False)
+    passwordIn = models.CharField(max_length=50, null=False)
     time_stamp = models.DateTimeField(auto_now_add=True, null=False)
 
 class DeviceHst(models.Model):
@@ -136,12 +114,7 @@ class DeviceHst(models.Model):
     time_stamp = models.DateTimeField(auto_now_add=True, null=False)
 
 ###################################### Relation ######################################
-# class Password(models.Model):
-#     device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
-#     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-#     passwordContent = models.CharField(max_length=50, null=False)
-
-###################################### Multi Attribute ######################################
-class Option(models.Model):
-    alarmHst = models.ForeignKey(AlarmHst, on_delete=models.SET_NULL, null=True)
-    # aOption
+class PasswordRela(models.Model):
+    device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    passwordContent = models.CharField(max_length=50, null=False)
