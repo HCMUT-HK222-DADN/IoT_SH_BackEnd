@@ -20,7 +20,7 @@ class Sensors(models.Model):    #devices_sensors
     value = models.FloatField(null=True)
     room = models.CharField(max_length=100, null=False)
     created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+    # updated_date = models.DateTimeField(auto_now=True)
 
 class User(models.Model):   #devices_user
     username = models.CharField(max_length=100, null=False)
@@ -44,15 +44,6 @@ class Devices(models.Model):    #devices_devices
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
-class Camera(models.Model):
-    STATUS_CHOICES = [
-        (True, 'Online'),
-        (False, 'Disconect')
-    ]
-    status = models.BooleanField(null=False, choices=STATUS_CHOICES, default=False)
-    room = models.CharField(max_length=100, null=False)
-    url = models.URLField(max_length = 200, null=True)
-
 ###################################### Weak entities ######################################
 
 class DeviceAuto(models.Model):
@@ -70,41 +61,29 @@ class DeviceAuto(models.Model):
 class SensorData(models.Model):
     sensor = models.ForeignKey(Sensors, on_delete=models.SET_NULL, null=True)
     value = models.DecimalField(null=False, max_digits=5, decimal_places=3)
-    time = models.DateTimeField(auto_now_add=True)
+    time_stamp = models.DateTimeField(auto_now_add=True)
 
 # Các time_start, time_end trong các class bên dưới cần phải sửa lại.
 # Giải pháp time_start có thể là auto_now_add, time_end có thể là auto_now
 # Ràng buộc về time_end > time_start cần gọi validator (chưa hiện thực được)
 
 ###################### Weak entity of User ######################
-class RestReco(models.Model):
+class SessionRecord(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     time_start = models.DateTimeField(auto_now=True, null=False)
     time_end = models.DateTimeField(auto_now=True, null=False)
     work_inter = models.CharField(max_length=100, null=False)
     rest_inter = models.CharField(max_length=100, null=False)
 
-class SessionHst(models.Model):
+class SessionSet(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     time_start = models.DateTimeField(auto_now=True, null=False)
     time_end = models.DateTimeField(auto_now=True, null=False)
-
-class CamRecord(models.Model):
-    camera = models.ForeignKey(Camera, on_delete=models.SET_NULL, null=True)
-    sensor = models.ForeignKey(Sensors, on_delete=models.SET_NULL, null=True)
-    url = models.URLField(max_length = 200, null=False)
-    time_stamp = models.DateTimeField(auto_now_add=True, null=False)
 
 class SetDevice(models.Model):
     device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     value = models.DecimalField(null=False, max_digits=5, decimal_places=3)
-    time_stamp = models.DateTimeField(auto_now_add=True, null=False)
-
-class PassInput(models.Model):
-    device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    passwordIn = models.CharField(max_length=50, null=False)
     time_stamp = models.DateTimeField(auto_now_add=True, null=False)
 
 class DeviceHst(models.Model):

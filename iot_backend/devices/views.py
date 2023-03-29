@@ -3,9 +3,9 @@ from rest_framework import viewsets, permissions
 from devices.models import *
 from devices.serializers import *
 
-class SensorViewSet(viewsets.ModelViewSet):
+class SensorsViewSet(viewsets.ModelViewSet):
     queryset = Sensors.objects.all()
-    serializer_class = SensorSerializer
+    serializer_class = SensorsSerializer
     
     # Tạo bảo mật cho phép xem khi đăng nhập
     # permission_classes = [permissions.IsAuthenticated]
@@ -20,6 +20,10 @@ class DevicesViewSet(viewsets.ModelViewSet):
     queryset = Devices.objects.all()
     serializer_class = DevicesSerializer
 
-class CameraViewSet(viewsets.ModelViewSet):
-    queryset = Camera.objects.all()
-    serializer_class = CameraSerializer
+class DeviceAutoViewSet(viewsets.ModelViewSet):
+    queryset = DeviceAuto.objects.all()
+    serializer_class = DeviceAutoSerializer
+
+class SensorDataViewSet(viewsets.ModelViewSet):
+    queryset = SensorData.objects.all()
+    serializer_class = SensorDataSerializer

@@ -1,7 +1,7 @@
 from rest_framework.serializers import ModelSerializer
 from devices.models import *
 
-class SensorSerializer(ModelSerializer):
+class SensorsSerializer(ModelSerializer):
     class Meta:
         model = Sensors
         fields = ['id','name','type','active','value','room','created_date','updated_date']
@@ -11,8 +11,14 @@ class DevicesSerializer(ModelSerializer):
         model = Devices
         fields = ['id','name','type','active','value','room','created_date','updated_date']
 
-class CameraSerializer(ModelSerializer):
+class DeviceAutoSerializer(ModelSerializer):
+    device = DevicesSerializer()
     class Meta:
-        model = Camera
-        fields = ['id','status','room','url']
+        model = DeviceAuto
+        fields = ['device','value','time_stamp']
 
+class SensorDataSerializer(ModelSerializer):
+    sensor = SensorsSerializer()
+    class Meta:
+        model = SensorData
+        fields = ['sensor','value','time_stamp']
