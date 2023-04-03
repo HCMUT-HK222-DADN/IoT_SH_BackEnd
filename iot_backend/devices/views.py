@@ -31,23 +31,58 @@ class SensorDataViewSet(viewsets.ModelViewSet):
     queryset = SensorData.objects.all()
     serializer_class = SensorDataSerializer
 
-class DevicesUpdateView(APIView):
+class DevicesAcionView(APIView):
     def get_object(self, pk):
         try:
             return Devices.objects.get(pk=pk)
         except Devices.DoesNotExist:
             raise Http404
+        
+    def get(self, request, pk):
+        device = self.get_object(pk=pk)
+        serializer = DevicesSerializer(device)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
-    def post(self, request, pk, format=None):
-        device = self.get_object(pk)
-        serializer = DevicesSerializer(device, data=request.data, partial=True)
-        print(request.data.get('value'))
+    def get(self, request):
+        room = request.query_params.get('room')
+        type = request.query_params.get('type')
+        active = request.query_params.get('active')
+        devices = Devices.objects.all()
+        if room:
+            devices = devices.filter(room=room)
+        if type:
+            devices = devices.filter(type=type)
+        if active:
+            devices = devices.filter(active=active)
+        serializer = DevicesSerializer(devices, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """payload:
+        {
+            "name":"Fan1",
+            "type":"Fan",
+            "active":true,
+            "value": 0,
+            "room":"Working Room"
+        }
+        """
+        serializer = DevicesSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    serializer_class = DevicesSerializer
+
+    def put(self, request, pk, *args, **kwargs):
+        device = self.get_object(pk)
+        serializer = DevicesSerializer(device, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # serializer_class = DevicesSerializer
+       
         
 
 
@@ -77,4 +112,3 @@ class CreateSensorDataView(APIView):
             else:
                 return Response({"errors":"Sensor Id not found!"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
