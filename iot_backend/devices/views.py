@@ -95,7 +95,7 @@ class CreateSensorDataView(APIView):
                 'value': 32
             }
         """
-        print(request.data)
+        # print(request.data)
         serializer = CreateSensorDataSerializer(data=request.data)
         if serializer.is_valid():
             sensor_id = request.data.get('sensor_id')
