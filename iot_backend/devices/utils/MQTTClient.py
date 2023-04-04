@@ -3,7 +3,7 @@
 # username, and feed to subscribe to for changes.
 
 # Import standard python modules.
-import sys, json
+import sys, json, requests
 
 # Import Adafruit IO MQTT client.
 from Adafruit_IO import MQTTClient
@@ -11,7 +11,7 @@ from Adafruit_IO import MQTTClient
 # Set to your Adafruit IO key.
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
-with open('MQTT_Config.json') as f:
+with open('./MQTTConfig.json') as f:
     config = json.load(f)
     ADAFRUIT_IO_KEY = config['ADAFRUIT_IO_KEY']
     ADAFRUIT_IO_USERNAME = config['ADAFRUIT_IO_USERNAME']
@@ -49,6 +49,19 @@ def message(client, feed_id, payload):
     # Message function will be called when a subscribed feed has a new value.
     # The feed_id parameter identifies the feed, and the payload parameter has
     # the new value.
+    url = 'http://127.0.0.1:8000/api/insertSensorData/'
+    data = {
+        "sensor_id": 1,
+        "value": payload
+    }
+    headers = {"Content-Type":"application/json"}
+    jsondata = json.dumps(data)
+    print(jsondata)
+    response = requests.post(url=url, data=jsondata, headers=headers)
+    if response.status_code == 201:
+        print("OK")
+    else: print("Something went wrong!")
+
     print('Feed {0} received new value: {1}'.format(feed_id, payload))
 
 
