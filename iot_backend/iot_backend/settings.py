@@ -45,6 +45,13 @@ INSTALLED_APPS = [
     'devices'
 ]
 
+# Code for paging
+
+# REST_FRAMEWORK = {
+#     'DEFAULT_PAGINATION_CLASS':'rest_framework.pagination.PageNumberPagination',
+#     'PAGE_SIZE':'2'
+# }
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -86,7 +93,7 @@ DATABASES = {
     # }
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'iot_db',
+        'NAME': 'iot_1',
         'USER': 'root',
         'PASSWORD': '123456',
         'HOST': '127.0.0.1',
@@ -119,9 +126,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Bangkok'
+DATETIME_FORMAT = '%d-%m-%Y %H:%M:%S' 
 
 USE_I18N = True
+
+USE_L10N = False
 
 USE_TZ = True
 
