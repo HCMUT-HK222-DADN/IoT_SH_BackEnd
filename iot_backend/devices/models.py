@@ -38,6 +38,7 @@ class Devices(models.Model):    #devices_devices
     ]
     name = models.CharField(max_length=100, null=False)
     type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    # type = models.CharField(max_length=10, null=False)
     active = models.BooleanField(null=False, default=False)
     value = models.DecimalField(null=True, max_digits=5, decimal_places=3)
     room = models.CharField(max_length=100, null=False)
