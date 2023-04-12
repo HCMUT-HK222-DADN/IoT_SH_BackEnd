@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'django_extensions',
     'django_filters',
     'rest_framework',
-    'devices'
+    'devices',
+    'channels',
 ]
 
 # Code for paging
