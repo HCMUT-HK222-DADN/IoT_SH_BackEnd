@@ -20,7 +20,3 @@ class MyConsumer(AsyncWebsocketConsumer):
         except ValueError:
             # The message is not valid JSON
             await self.send(text_data = "Echo from host: " + text_data)
-
-    
-
-
