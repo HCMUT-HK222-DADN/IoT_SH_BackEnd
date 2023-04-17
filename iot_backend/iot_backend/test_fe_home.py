@@ -20,7 +20,7 @@ class MyConsumer(AsyncWebsocketConsumer):
                     'Temp': 20,
                     'Humi': 20,
                     'Light': 20,
-                    'Motion': 0,
+                    'Motion': 1,
                 }
                 await self.send(json.dumps(message))
             else:
