@@ -1,6 +1,6 @@
 from django.urls import path, include
 from . import views
-from .views import CreateSensorDataView, DevicesAcionView
+from .views import CreateSensorDataView, DevicesAcionView, SensorActionView
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
@@ -14,5 +14,6 @@ urlpatterns = [
     path('insertSensorData/', CreateSensorDataView.as_view(), name='insertSensorData'),
     path('updateDevicesView/<int:pk>', DevicesAcionView.as_view()),
     path('deviceAction/', DevicesAcionView.as_view()),
+    path('sensorsAction/', SensorActionView.as_view()),
     # path('device/<int:pk>/get', DevicesUpdateView.as_view())
 ]
