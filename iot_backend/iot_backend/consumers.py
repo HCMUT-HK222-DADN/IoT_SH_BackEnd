@@ -11,26 +11,19 @@ headers = {"Content-Type":"application/json"}
 
 class MyConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        await self.accept()
+
         self.channel_layer = get_channel_layer()
 
         await self.channel_layer.group_add(
-            'my-group',
+            'my_group',
             self.channel_name
         )
-
-        view_url = "http://127.0.0.1:8000/api/insertSensorData/"
-
-        request = RequestFactory().get(view_url)
-
-        request.channel_layer = self.channel_layer
-
-
-        await self.accept()
 
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
-            'my-group',
+            'my_group',
             self.channel_name
         )
         # await post_signal.disconnect(self.handle_post_data_received)    
@@ -48,7 +41,6 @@ class MyConsumer(AsyncWebsocketConsumer):
                 if response.status_code == 200:
                     response_json = json.loads(response.text)
                     for ele in response_json:
-                        print(type(ele))
                         if ele['type'] == 'Hu':
                             message['Humi'] = ele['value']
                         if ele['type'] == 'Te':
@@ -65,31 +57,7 @@ class MyConsumer(AsyncWebsocketConsumer):
             # The message is not valid JSON
             await self.send(text_data = "Echo from host: " + text_data)
     
-    # @receiver(post_signal)
-    # async def handle_post_signal(sender, **kwargs):
-    #     my_data = kwargs.get('data')
-    #     print(my_data)
-    #     # process my_data and prepare a message to send to the client
-    #     message = 'New data: {}'.format(my_data)
-    #     await MyConsumer.send_updates(message)
-
-    async def handle_post_data_received(self, sender, **kwargs):
-        new_data = kwargs['data']
-        print(new_data)
-        await self.send(new_data)
-
-    
-    @staticmethod
-    async def send_updates(message):
-        await MyConsumer.group_send('my_group', {'Type': 'RequestUpdateSensor', 'message': message})
-
     async def send_message(self, event):
         message = event['message']
-        await self.send(message)
-
-    async def websocket_connect(self, event):
-        await self.channel_layer.group_add('my_group', self.channel_name)
-        await self.accept()
-
-    async def websocket_disconnect(self, event):
-        await self.channel_layer.group_discard('my_group', self.channel_name)
+        print(message)
+        await self.send(json.dumps(message))

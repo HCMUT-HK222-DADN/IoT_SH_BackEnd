@@ -12,7 +12,6 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import json
 
-channel_layer = get_channel_layer()
 
 class SensorsViewSet(viewsets.ModelViewSet):
     queryset = Sensors.objects.all()
@@ -156,17 +155,24 @@ class CreateSensorDataView(APIView):
                 sensor.save()
                 serializer.save(sensor=sensor)
                 sensor_json = json.dumps(SensorsSerializer(sensor).data)
-                new_object_created.send(sender=self.__class__, object=sensor_json)
+                channel_layer = get_channel_layer()
+                print("ASYNC_TO_SYNC")
+                async_to_sync(channel_layer.group_send)(
+                    "my_group",
+                    {
+                        'type':'send_message',
+                        'message': {
+                            'Type': "UpdateSensor",
+                            'Temp': newValue,
+                            'Humi': 20,
+                            'Light': 20,
+                            'Motion': 1,
+                        }
+                    }
+                )
                 # print(sended)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 return Response({"errors":"Sensor Id not found!"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-@receiver(new_object_created)
-def handle_new_object_created(sender, object, **kwargs):
-    # channel_layer = get_channel_layer()
-
-    async_to_sync(channel_layer.group_send(
-        "my_group", object
-    ))

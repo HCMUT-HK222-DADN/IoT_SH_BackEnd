@@ -8,6 +8,7 @@ import sys, json, requests
 # Import Adafruit IO MQTT client.
 from Adafruit_IO import MQTTClient
 
+url = "http://10.229.70.218:8000/api/"
 # Set to your Adafruit IO key.
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
@@ -49,7 +50,7 @@ def message(client, feed_id, payload):
     # Message function will be called when a subscribed feed has a new value.
     # The feed_id parameter identifies the feed, and the payload parameter has
     # the new value.
-    url = 'http://127.0.0.1:8000/api/insertSensorData/'
+    url_insert = url + 'insertSensorData/'
     data = {
         "sensor_id": 1,
         "value": payload
@@ -57,12 +58,13 @@ def message(client, feed_id, payload):
     headers = {"Content-Type":"application/json"}
     jsondata = json.dumps(data)
     print(jsondata)
-    response = requests.post(url=url, data=jsondata, headers=headers)
+    response = requests.post(url=url_insert, data=jsondata, headers=headers)
     if response.status_code == 201:
         print("OK")
     else: print("Something went wrong!")
 
     print('Feed {0} received new value: {1}'.format(feed_id, payload))
+    
 
 
 # Create an MQTT client instance.
