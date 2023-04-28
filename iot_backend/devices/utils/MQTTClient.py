@@ -8,7 +8,7 @@ import sys, json, requests
 # Import Adafruit IO MQTT client.
 from Adafruit_IO import MQTTClient
 
-url = "http://10.229.70.218:8000/api/"
+url = "http://192.168.1.11:8000/api/"
 # Set to your Adafruit IO key.
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!

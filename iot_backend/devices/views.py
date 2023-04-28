@@ -5,9 +5,6 @@ from rest_framework.response import Response
 from devices.models import *
 from devices.serializers import *
 from django.http import Http404
-from channels.generic.websocket import AsyncWebsocketConsumer
-from django.dispatch import receiver
-from devices.signals import new_object_created
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import json
@@ -39,24 +36,35 @@ class SensorDataViewSet(viewsets.ModelViewSet):
     serializer_class = SensorDataSerializer
 
 class DevicesAcionView(APIView):
-    def get_object(self, pk):
-        try:
-            return Devices.objects.get(pk=pk)
-        except Devices.DoesNotExist:
-            raise Http404
+    # def get_object(self, pk):
+    #     try:
+    #         return Devices.objects.get(pk=pk)
+    #     except Devices.DoesNotExist:
+    #         raise Http404
         
-    def get(self, request, pk):
-        device = self.get_object(pk=pk)
-        serializer = DevicesSerializer(device)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    # def get(self, request, pk):
+    #     # device = self.get_object(pk=pk)
+    #     device = Devices.objects.get(pk=pk)
+    #     serializer = DevicesSerializer(device)
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
     
-    def get(self, request):
+    def get(self, request, pk=None):
+        if pk is not None:
+            sensor = Devices.objects.get(pk=pk)
+            serializer = SensorsSerializer(sensor)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        id = request.query_params.get('id')
         room = request.query_params.get('room')
+        name = request.query_params.get('name')
         type = request.query_params.get('type')
         active = request.query_params.get('active')
         devices = Devices.objects.all()
+        if id:
+            devices = devices.filter(id=id)
         if room:
             devices = devices.filter(room=room)
+        if name:
+            devices = devices.filter(name=name)
         if type:
             devices = devices.filter(type=type)
         if active:
@@ -80,10 +88,12 @@ class DevicesAcionView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, pk, *args, **kwargs):
-        device = self.get_object(pk)
+    def put(self, request, pk):
+        # device = self.get_object(pk)
+        device = Devices.objects.get(pk=pk)
         serializer = DevicesSerializer(device, data=request.data, partial=True)
         if serializer.is_valid():
+            print(serializer)
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -96,25 +106,36 @@ class SensorActionView(APIView):
             return Sensors.objects.get(pk=pk)
         except Sensors.DoesNotExist:
             raise Http404
-    
-    def get(self, request, pk):
-        device = self.get_object(pk=pk)
-        serializer = SensorsSerializer(device)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def get(self, request):
+        
+    def get(self, request, pk = None):
+        if pk is not None:
+            sensor = self.get_object(pk=pk)
+            serializer = SensorsSerializer(sensor)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        id = request.query_params.get('id')
         room = request.query_params.get('room')
+        name = request.query_params.get('name')
         type = request.query_params.get('type')
         active = request.query_params.get('active')
         sensors = Sensors.objects.all()
+        if id:
+            sensors = sensors.filter(id=id)
         if room:
             sensors = sensors.filter(room=room)
+        if name:
+            sensors = sensors.filter(name=name)
         if type:
             sensors = sensors.filter(type=type)
         if active:
             sensors = sensors.filter(active=active)
         serializer = SensorsSerializer(sensors, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    # def get(self, request, pk):
+    #     # sensor = Sensors.objects.get(pk=pk)
+    #     sensor = self.get_object(pk=pk)
+    #     serializer = SensorsSerializer(sensor)
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
     
     def post(self, request):
         """payload:
