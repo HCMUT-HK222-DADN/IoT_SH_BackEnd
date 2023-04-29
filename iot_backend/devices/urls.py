@@ -1,6 +1,6 @@
 from django.urls import path, include
 from . import views
-from .views import CreateSensorDataView, DevicesAcionView, SensorActionView, MyView
+from .views import CreateSensorDataView, DevicesAcionView, SensorActionView
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()

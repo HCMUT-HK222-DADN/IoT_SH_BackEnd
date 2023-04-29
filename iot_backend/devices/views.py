@@ -7,8 +7,22 @@ from devices.serializers import *
 from django.http import Http404
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+# from umqtt.robust import MQTTClient
+from Adafruit_IO import MQTTClient
 import json
 
+AIO_USERNAME = "LamVinh"
+AIO_KEY = "aio_HUyW98JRfR6disI1VkEDqEZ9f7G0"
+AIO_FEED = {
+    "Fan" : "fan",
+    "Light" : "button1"
+}
+
+client = MQTTClient(AIO_USERNAME, AIO_KEY)
+
+class DeviceStatusExe:
+    def execute():
+        pass
 
 class SensorsViewSet(viewsets.ModelViewSet):
     queryset = Sensors.objects.all()
@@ -95,8 +109,16 @@ class DevicesAcionView(APIView):
         if serializer.is_valid():
             print(serializer)
             serializer.save()
+            client.connect()
+            if device.type == "Fan":
+                client.publish(AIO_FEED['Fan'], request.data.get('value'))
+            if device.type == "Sw":
+                client.publish(AIO_FEED['Light'], request.data.get('value'))
+            client.disconnect()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
     # serializer_class = DevicesSerializer
        
@@ -158,18 +180,23 @@ class CreateSensorDataView(APIView):
     def post(self, request):
         """payload: 
             {
-                'sensor_id': 1,
-                'value': 32
+                "name": "Light",
+                "type": "Li",
+                "room": "Working Room",
+                "value": payload
             }
         """
         # print(request.data)
         serializer = CreateSensorDataSerializer(data=request.data)
         if serializer.is_valid():
-            sensor_id = request.data.get('sensor_id')
+            sensor_name = request.data.get('name')
+            sensor_type = request.data.get('type')
+            sensor_in_room = request.data.get('room')
             newValue = request.data.get('value')
-            if sensor_id is not None:
+            if sensor_name is not None:
                 try:
-                    sensor = Sensors.objects.get(id=sensor_id)
+                    sensor = Sensors.objects.filter(name=sensor_name, type=sensor_type, room=sensor_in_room).first()
+                    # sensor = Sensors.objects.get(id=sensor_id)
                 except Sensors.DoesNotExist:
                     return Response({"errors":"Invalid Sensor ID!"}, status=status.HTTP_400_BAD_REQUEST)
                 sensor.value = newValue
