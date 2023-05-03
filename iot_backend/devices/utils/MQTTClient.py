@@ -9,7 +9,8 @@ from Adafruit_IO import MQTTClient
 AIO_USERNAME = "LamVinh"
 AIO_KEY = "aio_HUyW98JRfR6disI1VkEDqEZ9f7G0"
 AIO_FEED_IDS = ["button1", "fan",'humi-info','temp-info','motion', 'light2']
-URL = "http://127.0.0.1:8000/api/insertSensorData/"
+# URL = "http://127.0.0.1:8000/api/insertSensorData/"
+URL = "http://192.168.1.13:8000/api/insertSensorData/"
 HEADERS = {"Content-Type":"application/json"}
 # =======
 # AIO_USERNAME = "your user name"

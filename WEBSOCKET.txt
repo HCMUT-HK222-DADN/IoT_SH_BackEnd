@@ -1,0 +1,49 @@
+- Điều khiển thiết bị
+    message = 
+        {
+            "Type":"RequestDeviceControl",
+            "Device_id": 1,
+            "Value": 80.0
+        }
+
+- Lấy dữ liệu của tất cả sensor:
+    message = 
+        {
+            "Type":"RequestUpdateSensor"
+        }
+
+- Lấy dữ liệu của một loại sensor cụ thể:
+    message = 
+        {
+            "Type":"RequestUpdate{type}Sensor"
+        }
+        type = ["Humid","Light","Temp","Motion"]
+
+- Tạo session sử dụng phòng:
+    message = 
+        {
+            "Type":"RequestScheduleBook",
+            "Data": 
+            {
+                {
+                    "username":"hiepngo",
+                    "time_start":1683093600,
+                    "time_end":	1683104400,
+                    "work_inter": "50",
+                    "rest_inter": "10"
+                }
+            }
+        }
+
+- Lấy lịch sử session:
+    message = 
+        {
+            "Type":"RequestSchedule",
+            "Id":1 // optional   
+        }
+
+- Lấy lịch sử hẹn giờ thiết bị:
+    message =
+        {
+            "Type":"RequestDeviceTimerSchedule"
+        }

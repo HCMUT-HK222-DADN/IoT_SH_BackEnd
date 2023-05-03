@@ -1,0 +1,46 @@
+- Lấy thông tin thiết bị theo Id:
+    + URL: http://127.0.0.1:8000/api/devicesAction/{id}/
+    + Method: GET
+    + Payload: 
+- Điều khiển thiết bị - cập nhật lại trường value:
+    + URL: http://127.0.0.1:8000/api/devicesAction/{id}/
+    + Method: PUT
+    + Payload: 
+        {
+            "value": 10.0
+        }
+
+- Tạo lịch hẹn cho thiết bị:
+    + URL: http://127.0.0.1:8000/api/setDevice/
+    + Method: POST
+    + Payload: JSON
+        {
+            "username":"hiepngo",
+            "device_id" : "2",
+            "value" : 1,
+            "time_stamp" : "2023-05-02 18:30:00"
+        }
+
+- Lấy ra lịch hẹn của thiết bị - Theo paramquery:
+    + URL: http://127.0.0.1:8000/api/setDeviceAction/?username={username}&device_id={device_id}
+    + Method: GET
+    + Payload: None
+
+- Lấy ra lịch hẹn của thiết bị - theo Id:
+    + URL: http://127.0.0.1:8000/api/setDeviceAction/{pk}/
+    + Method: GET
+    + Payload: None
+
+- Đăng ký thời gian sử dụng phòng:
+    + URL: http://127.0.0.1:8000/api/addSessionRecord/
+    + Method: POST
+    + Payload: JSON
+        {
+            "username":"hiepngo",
+            "time_start":1683093600,
+            "time_end":	1683104400,
+            "work_inter": "50",
+            "rest_inter": "10"
+        }
+
+

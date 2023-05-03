@@ -1,14 +1,21 @@
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
+from rest_framework_simplejwt.views import TokenBlacklistView , TokenViewBase
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
+from django.contrib.auth import logout
 from devices.models import *
 from devices.serializers import *
 from django.http import Http404
 from channels.layers import get_channel_layer
+from devices.models import OutstandingToken
 from asgiref.sync import async_to_sync
-# from umqtt.robust import MQTTClient
+from django.contrib.auth.hashers import make_password, check_password, MD5PasswordHasher
 from Adafruit_IO import MQTTClient
+from datetime import datetime
 import json
 
 AIO_USERNAME = "LamVinh"
@@ -36,31 +43,78 @@ class SensorsViewSet(viewsets.ModelViewSet):
     #     if self.action == 'list':
     #         return [permissions.AllowAny()]
     #     return [permissions.IsAuthenticated()]
+
+
+class UserRegistrationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username', None)
+        password = request.data.get('password', None)
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            return Response({'detail': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        if not user.check_password(password):
+            return Response({'detail': 'Invalid Password'}, status=status.HTTP_401_UNAUTHORIZED)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+
+
+class UserLogoutView(TokenViewBase):
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            jti = token['jti']
+            outstanding_token, created = OutstandingToken.objects.get_or_create(jti=jti)
+            if not created:
+                return Response({'detail': 'Token has already been blacklisted'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'User logged out successfully'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': 'Unable to log out user: ' + str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class BlacklistTokenView(TokenBlacklistView):
+    pass
+
+class ChangePasswordView(APIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
     
-class DevicesViewSet(viewsets.ModelViewSet):
-    queryset = Devices.objects.all()
-    serializer_class = DevicesSerializer
+    def put(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        serializer = self.get_serializer(data=request.data)
 
-class DeviceAutoViewSet(viewsets.ModelViewSet):
-    queryset = DeviceAuto.objects.all()
-    serializer_class = DeviceAutoSerializer
+        if serializer.is_valid():
+            old_password = serializer.data.get("old_password")
+            new_password = serializer.data.get("new_password")
+            if not check_password(old_password, self.object.password):
+                return Response({"old_password": ["Wrong password."]}, status=status.HTTP_400_BAD_REQUEST)
+            self.object.set_password(new_password)
+            self.object.save()
+            return Response({"status": "Password updated successfully."}, status=status.HTTP_200_OK)
 
-class SensorDataViewSet(viewsets.ModelViewSet):
-    queryset = SensorData.objects.all()
-    serializer_class = SensorDataSerializer
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 class DevicesAcionView(APIView):
-    # def get_object(self, pk):
-    #     try:
-    #         return Devices.objects.get(pk=pk)
-    #     except Devices.DoesNotExist:
-    #         raise Http404
-        
-    # def get(self, request, pk):
-    #     # device = self.get_object(pk=pk)
-    #     device = Devices.objects.get(pk=pk)
-    #     serializer = DevicesSerializer(device)
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
     
     def get(self, request, pk=None):
         if pk is not None:
@@ -202,7 +256,6 @@ class CreateSensorDataView(APIView):
                 sensor.value = newValue
                 sensor.save()
                 serializer.save(sensor=sensor)
-                sensor_json = json.dumps(SensorsSerializer(sensor).data)
                 channel_layer = get_channel_layer()
                 print("ASYNC_TO_SYNC")
                 async_to_sync(channel_layer.group_send)(
@@ -224,3 +277,121 @@ class CreateSensorDataView(APIView):
                 return Response({"errors":"Sensor Id not found!"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class SessionRecordView(APIView):
+    def get(self, request, pk=None):
+        try:
+            if pk is not None:
+                sessionRec = SessionRecord.objects.get(pk=pk)
+                serializer = SessionRecordSerializer(sessionRec)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                sessionRec = SessionRecord.objects.all()
+                serializer = SessionRecordSerializer(sessionRec, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        except SessionRecord.DoesNotExist:
+            return Response({"errors":"Session Record not found!"}, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request):
+        """
+        {
+            "username":"hiepngo",
+            "time_start": "1682991000", // 2023-05-02 08:30:00
+            "time_end": "1683001800",
+            "work_inter": "50",
+            "rest_inter": "10"
+        }
+        """
+        user_obj = User.objects.filter(username=request.data.get('username')).first()
+        if user_obj is None:
+            return Response({"errors":"username not found!"}, status=status.HTTP_404_NOT_FOUND)
+        # datetime_start = datetime.fromtimestamp(request.data.get('time_start'))
+        # datetime_end = datetime.fromtimestamp(request.data.get('time_end'))
+        if isinstance(request.data.get('time_start'), int):
+            datetime_start = datetime.fromtimestamp(request.data.get('time_start'))
+        else:
+            datetime_start = request.data.get('time_start')
+        if isinstance(request.data.get('time_end'), int):
+            datetime_end = datetime.fromtimestamp(request.data.get('time_end'))
+        else:
+            datetime_end = request.data.get('time_end')
+        data = {
+            # "time_start": datetime_start,
+            # "time_end":datetime_end,
+            "time_start": datetime_start,
+            "time_end": datetime_end,
+            "work_inter": request.data.get('work_inter'),
+            "rest_inter": request.data.get('rest_inter')
+        }
+        serializer = SessionRecordSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(user=user_obj)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class UpdateSessionRecordView(APIView):
+    def get_object(self, pk):
+        try:
+            return SessionRecord.objects.get(pk=pk)
+        except SessionRecord.DoesNotExist:
+            raise Http404
+        
+    def put(self, request, pk):
+        sessionRec = self.get_object(pk)
+        print("SESSION START: ", sessionRec.time_start)
+        time_end = request.data.get('time_end')
+        if time_end:
+            request.data['time_end'] = datetime.strptime(time_end, '%Y-%m-%dT%H:%M:%S%z')
+        serializer = SessionRecordSerializer(sessionRec, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class SetDeviceView(APIView):
+    def get_object(self, pk):
+        try:
+            return SetDevice.objects.get(pk=pk)
+        except SetDevice.DoesNotExist:
+            raise Http404
+        
+    def get(self, request, pk=None):
+        if pk is not None:
+            device_usage = self.get_object(pk=pk)
+            serializer = SetDeviceSerializer(device_usage)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        username = request.query_params.get('username')
+        device_id = request.query_params.get('device_id')
+        device_scheduled = SetDevice.objects.all()
+        if username:
+            user_obj = User.objects.filter(username=username).first()
+            device_scheduled = device_scheduled.filter(user=user_obj)
+        if device_id:
+            device_obj = Devices.objects.filter(id=device_id).first()
+            device_scheduled = device_scheduled.filter(device=device_obj)
+        serializer = SetDeviceSerializer(device_scheduled, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """
+        {
+            "username" : "hiepngo",
+            "device_id" : "1",
+            "value" : 10.1,
+            "time_stamp" : "2023-05-02 13:00:00"
+        }
+        """
+        user_obj = User.objects.filter(username=request.data.get('username')).first()
+        if user_obj is None:
+            return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
+        device_obj = Devices.objects.filter(id=request.data.get('device_id')).first()
+        if device_obj is None:
+            return Response({'error':'Device not found!'}, status=status.HTTP_404_NOT_FOUND)
+        data = {
+            "value": request.data.get('value'),
+            "time_stamp": request.data.get('time_stamp')
+        }
+        serializer = SetDeviceSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(user=user_obj, device=device_obj)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
