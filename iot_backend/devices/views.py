@@ -15,8 +15,8 @@ from devices.models import OutstandingToken
 from asgiref.sync import async_to_sync
 from django.contrib.auth.hashers import make_password, check_password, MD5PasswordHasher
 from Adafruit_IO import MQTTClient
-from datetime import datetime
-import json
+from datetime import datetime, date
+import json, schedule, subprocess, time
 
 AIO_USERNAME = "LamVinh"
 AIO_KEY = "aio_HUyW98JRfR6disI1VkEDqEZ9f7G0"
@@ -67,11 +67,8 @@ class UserLoginView(APIView):
             return Response({'detail': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         if not user.check_password(password):
             return Response({'detail': 'Invalid Password'}, status=status.HTTP_401_UNAUTHORIZED)
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_200_OK)
+        serializer = UserSerializer(user)
+        return Response(serializer.data['id'], status=status.HTTP_200_OK)
 
 
 class UserLogoutView(TokenViewBase):
@@ -114,7 +111,7 @@ class ChangePasswordView(APIView):
 
 
 
-class DevicesAcionView(APIView):
+class DevicesActionView(APIView):
     
     def get(self, request, pk=None):
         if pk is not None:
@@ -156,10 +153,16 @@ class DevicesAcionView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, pk):
-        # device = self.get_object(pk)
-        device = Devices.objects.get(pk=pk)
-        serializer = DevicesSerializer(device, data=request.data, partial=True)
+    def put(self, request, pk=None):
+        if pk is not None:
+            device = self.get_object(pk)
+            payload = request.data
+        else:
+            device = Devices.objects.filter(name=request.data.get('name')).first()
+            payload = {
+                "value": request.data.get('value')
+            }
+        serializer = DevicesSerializer(device, data=payload, partial=True)        
         if serializer.is_valid():
             print(serializer)
             serializer.save()
@@ -172,7 +175,72 @@ class DevicesAcionView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class DeviceHstAction(APIView):
+    def get(self, request, pk=None):
+        if pk is not None:
+            devicehst = DeviceHst.objects.get(pk=pk)
+            serializer = DeviceHstSerializer(devicehst)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        devicehst = DeviceHst.objects.all()
+        user_id = request.query_params.get('UserID')
+        if user_id:
+            devicehst = devicehst.filter(user_id=user_id)
+        serializer = DeviceHstSerializer(devicehst, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """
+        payload: 
+        {
+            "time_stamp": "2023-05-04 13:00:00",
+            "value":40.0,
+            "Device":"Quat",
+            "UserID": 1
+        }
+        """
+        user_obj = User.objects.filter(id=request.data.get('UserID')).first()
+        if user_obj is None:
+            return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
+        device_obj = Devices.objects.filter(name=request.data.get('Device')).first()
+        if device_obj is None:
+            return Response({'error':'Device not found!'}, status=status.HTTP_404_NOT_FOUND)
+        data = {
+            "value": request.data.get('value'),
+            "time_stamp": request.data.get('time_stamp'),
+        }
+        serializer = DeviceHstSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(device=device_obj ,user=user_obj)
+            return Response(status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
 
+class ControlDeviceFromMQTT(APIView):
+    def put(self, request, pk=None):
+        if pk is not None:
+            device = Devices.objects.get(pk=pk)
+        else:
+            device = Devices.objects.filter(name=request.data.get('name')).first()
+        data = {
+            'value':request.data.get('value')
+        }
+        serializer = DevicesSerializer(device, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "my_group",
+                {
+                    'type':'send_message',
+                    'message': {
+                        "Type":"DeviceControl",
+                        "Device": request.data.get('name'),
+                        "Value": request.data.get('value')
+                        }
+                }
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # serializer_class = DevicesSerializer
        
@@ -256,19 +324,27 @@ class CreateSensorDataView(APIView):
                 sensor.value = newValue
                 sensor.save()
                 serializer.save(sensor=sensor)
+                message = {
+                    'Type':"UpdateSensor"
+                }
+                if sensor_name == "Light":
+                    message['Type'] = "UpdateLightSensor"
+                    message['Light'] = newValue
+                if sensor_name == "Temp":
+                    message['Type'] = "UpdateTempSensor"
+                    message['Temp'] = newValue
+                if sensor_name == "Humid":
+                    message['Type'] = "UpdateHumiSensor"
+                    message['Humi'] = newValue
+                if sensor_name == "Motion":
+                    message['Type'] = "UpdateMotionSensor"
+                    message['Motion'] = newValue
                 channel_layer = get_channel_layer()
-                print("ASYNC_TO_SYNC")
                 async_to_sync(channel_layer.group_send)(
                     "my_group",
                     {
                         'type':'send_message',
-                        'message': {
-                            'Type': "UpdateSensor",
-                            'Temp': newValue,
-                            'Humi': 20,
-                            'Light': 20,
-                            'Motion': 1,
-                        }
+                        'message': message
                     }
                 )
                 # print(sended)
@@ -285,7 +361,8 @@ class SessionRecordView(APIView):
                 serializer = SessionRecordSerializer(sessionRec)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
-                sessionRec = SessionRecord.objects.all()
+                user_id = request.data.get('user_id')
+                sessionRec = SessionRecord.objects.filter(user_id=user_id)
                 serializer = SessionRecordSerializer(sessionRec, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
         except SessionRecord.DoesNotExist:
@@ -294,26 +371,18 @@ class SessionRecordView(APIView):
     def post(self, request):
         """
         {
-            "username":"hiepngo",
-            "time_start": "1682991000", // 2023-05-02 08:30:00
+            "user_id":1,
+            "time_start": "2025-05-25 20:00:00", // 2023-05-02 08:30:00
             "time_end": "1683001800",
             "work_inter": "50",
             "rest_inter": "10"
         }
         """
-        user_obj = User.objects.filter(username=request.data.get('username')).first()
+        user_obj = User.objects.filter(id=request.data.get('user_id')).first()
         if user_obj is None:
             return Response({"errors":"username not found!"}, status=status.HTTP_404_NOT_FOUND)
-        # datetime_start = datetime.fromtimestamp(request.data.get('time_start'))
-        # datetime_end = datetime.fromtimestamp(request.data.get('time_end'))
-        if isinstance(request.data.get('time_start'), int):
-            datetime_start = datetime.fromtimestamp(request.data.get('time_start'))
-        else:
-            datetime_start = request.data.get('time_start')
-        if isinstance(request.data.get('time_end'), int):
-            datetime_end = datetime.fromtimestamp(request.data.get('time_end'))
-        else:
-            datetime_end = request.data.get('time_end')
+        datetime_start = datetime.strptime(request.data.get('time_start'), "%Y-%m-%d %H:%M:%S")
+        datetime_end = datetime.strptime(request.data.get('time_end'), "%Y-%m-%d %H:%M:%S")
         data = {
             # "time_start": datetime_start,
             # "time_end":datetime_end,
@@ -359,14 +428,14 @@ class SetDeviceView(APIView):
             device_usage = self.get_object(pk=pk)
             serializer = SetDeviceSerializer(device_usage)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        username = request.query_params.get('username')
-        device_id = request.query_params.get('device_id')
+        user_id = request.query_params.get('user_id')
+        device_name = request.query_params.get('device_name')
         device_scheduled = SetDevice.objects.all()
-        if username:
-            user_obj = User.objects.filter(username=username).first()
+        if user_id:
+            user_obj = User.objects.filter(id=user_id).first()
             device_scheduled = device_scheduled.filter(user=user_obj)
-        if device_id:
-            device_obj = Devices.objects.filter(id=device_id).first()
+        if device_name:
+            device_obj = Devices.objects.filter(name=device_name).first()
             device_scheduled = device_scheduled.filter(device=device_obj)
         serializer = SetDeviceSerializer(device_scheduled, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -374,16 +443,16 @@ class SetDeviceView(APIView):
     def post(self, request):
         """
         {
-            "username" : "hiepngo",
-            "device_id" : "1",
+            "user_id" : 2,
+            "device_name" : "Den",
             "value" : 10.1,
-            "time_stamp" : "2023-05-02 13:00:00"
+            "time_stamp" : "2023-05-02 13:00:00"    
         }
         """
-        user_obj = User.objects.filter(username=request.data.get('username')).first()
+        user_obj = User.objects.filter(id=request.data.get('user_id')).first()
         if user_obj is None:
             return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
-        device_obj = Devices.objects.filter(id=request.data.get('device_id')).first()
+        device_obj = Devices.objects.filter(name=request.data.get('device_name')).first()
         if device_obj is None:
             return Response({'error':'Device not found!'}, status=status.HTTP_404_NOT_FOUND)
         data = {
@@ -395,3 +464,120 @@ class SetDeviceView(APIView):
             serializer.save(user=user_obj, device=device_obj)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+    
+class DeleteSetDevice(APIView):
+    def delete(self, request, my_field_value):
+        try:
+            instance_list = SetDevice.objects.filter(user_id=my_field_value)
+            pos = request.data.get('position')
+            instance = instance_list[pos]
+            instance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except SetDevice.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+class DeleteSetSession(APIView):
+    def delete(self, request, my_field_value):
+        try:
+            instance_list = SessionRecord.objects.filter(user_id=my_field_value)
+            pos = request.data.get('position')
+            instance = instance_list[pos]
+            instance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except SessionRecord.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+class DeviceAutoView(APIView):
+    def post(self, request):
+        """
+        payload = {
+            'UserID':1,
+            'Device':"Quat",
+            'Value': 40.0,
+            "Data": ["07:00:00","12:00:00","20:00:00"]
+        }
+        """
+        user_obj = User.objects.filter(id=request.data.get('UserID')).first()
+        if user_obj is None:
+            return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
+        device_obj = Devices.objects.filter(name=request.data.get('Device')).first()
+        if device_obj is None:
+            return Response({'error':'Device not found!'}, status=status.HTTP_404_NOT_FOUND)
+        for data_item in request.data.get('Data'):
+            data = {
+                'value':request.data.get('Value'),
+                'time_stamp':data_item
+            }
+            serializer = DeviceAutoSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save(device=device_obj, user=user_obj)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_201_CREATED)
+
+class DeviceAutoSuggest(APIView):
+    def get(self, request, pk=None):
+        if pk is not None:
+            device_auto = DeviceAuto.objects.get(pk=pk)
+            serializer = DeviceAutoSerializer(device_auto)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        user_id = request.query_params.get('UserID')
+        device_name = request.query_params.get('Device')
+        value = request.query_params.get('Value')
+        device_obj = Devices.objects.filter(name=device_name).first()
+        device_auto = DeviceAuto.objects.filter(user=user_id, device=device_obj, value=value)
+        serializer = DeviceAutoSerializer(device_auto, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class CheckDeviceSchedAvailableToEnable(APIView):
+    def get(self, request):
+        print("*******CALL API CHECKING*******")
+
+        schedule.every(30).seconds.do(CheckUtils.check)
+        while True:
+            schedule.run_pending()
+            # setDeviceList = SetDevice.objects.all()
+            # if len(setDeviceList) == 0 or setDeviceList is not list:
+            #     break
+            time.sleep(1)
+        return Response('Scheduler start successfully!')
+
+class CheckUtils():
+    @staticmethod
+    def check():
+        print("*******CHECKING*******")
+        device_set_list = SetDevice.objects.all().order_by('time_stamp')
+        if len(device_set_list) > 0:
+            serializer = SetDeviceSerializer(device_set_list[0])
+            current_date = datetime.now()
+            current_date_obj = datetime.strptime(current_date.strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+            # device_set_date_obj = datetime.strptime(device_set_list[0].time_stamp, "%Y-%m-%d %H:%M:%S")
+            print("CURR_DATE: ", current_date_obj)
+            device_set_date_obj = device_set_list[0].time_stamp
+            print("DEVICE_TIMESTAMP: ", device_set_date_obj)
+            check = False
+            if current_date_obj.date() == device_set_date_obj.date():
+                if current_date_obj.time() >= device_set_date_obj.time():
+                    check = True
+                    # Call API Update value
+            elif current_date_obj.date() > device_set_date_obj.date():
+                check = True
+
+            if check:
+                message = {
+                    "Type":"RequestDeviceControlAuto",
+                    "Device": serializer.data['device_name'],
+                    "Value": str(serializer.data['value'])
+                }
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    "my_group",
+                    {
+                        'type':'send_message',
+                        'message': message
+                    }
+                )
+                print("*******DELETING*******\n", json.dumps(message))
+                # device_set_list[0].delete()
+                    

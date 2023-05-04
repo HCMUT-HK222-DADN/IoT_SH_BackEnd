@@ -23,6 +23,11 @@ class DeviceAutoSerializer(ModelSerializer):
         model = DeviceAuto
         fields = ['device','value','time_stamp']
 
+class DeviceHstSerializer(ModelSerializer):
+    class Meta:
+        model = DeviceHst
+        fields = '__all__'
+
 class SensorDataSerializer(ModelSerializer):
     # sensor = SensorsSerializer()
     class Meta:
@@ -39,7 +44,7 @@ class UserSerializer(ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'password']
+        fields = ['id', 'username', 'password']
 
     def create(self, validated_data):
         user = User(
@@ -66,6 +71,8 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True)
 
 class SessionRecordSerializer(ModelSerializer):
+    time_start = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
+    time_end = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
     class Meta:
         model = SessionRecord
         fields = '__all__'
@@ -82,25 +89,38 @@ class SessionRecordSerializer(ModelSerializer):
         return data
 
 class SetDeviceSerializer(ModelSerializer):
+    value = serializers.FloatField()
+    time_stamp = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
+    device_name = serializers.SerializerMethodField()
     class Meta:
         model = SetDevice
-        fields = '__all__'
+        fields = ['device','device_name','value','time_stamp','user']
 
+    def get_device_name(self, obj):
+        return obj.device.name
 
-# class UserLoginSerializer(Serializer):
-#     username = serializers.CharField()
-#     password = serializers.CharField()
+class UserLoginSerializer(Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
 
-#     def validate(self, data):
-#         user = authenticate(
-#             username=data.get('username',''),
-#             password=data.get('password','')
-#         )
-#         if not user:
-#             raise serializers.ValidationError('Invalid username or password')
-#         data['user'] = user
-#         return data
+    def validate(self, data):
+        user = authenticate(
+            username=data.get('username',''),
+            password=data.get('password','')
+        )
+        if not user:
+            raise serializers.ValidationError('Invalid username or password')
+        data['user'] = user
+        return data
 
+class DeviceAutoSerializer(ModelSerializer):
+    device_name = serializers.SerializerMethodField()
+    class Meta:
+        model = DeviceAuto
+        fields = ['device', 'device_name','value','time_stamp','user']
+
+    def get_device_name(self, obj):
+        return obj.device.name
 
 class ChoiceField(ChoiceField):
     def to_representation(self, obj):

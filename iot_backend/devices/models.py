@@ -57,7 +57,8 @@ class Devices(models.Model):    #devices_devices
 class DeviceAuto(models.Model):
     device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
     value = models.DecimalField(null=False, max_digits=5, decimal_places=3)
-    time_stamp = models.DateTimeField(auto_now_add=True)
+    time_stamp = models.CharField(max_length=100, null=False)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
 
 # def validate_time_end(time_end, time_start):
 #     if False:
@@ -98,7 +99,7 @@ class DeviceHst(models.Model):
     device = models.ForeignKey(Devices, on_delete=models.SET_NULL, null=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     value = models.DecimalField(null=False, max_digits=5, decimal_places=3)
-    time_stamp = models.DateTimeField( null=False)
+    time_stamp = models.CharField(max_length=100, null=False)
 
 ###################################### Relation ######################################
 class PasswordRela(models.Model):

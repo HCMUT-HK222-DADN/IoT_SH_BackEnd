@@ -4,13 +4,17 @@ import sys
 import time
 import requests, json
 from Adafruit_IO import MQTTClient
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 AIO_USERNAME = "LamVinh"
 AIO_KEY = "aio_HUyW98JRfR6disI1VkEDqEZ9f7G0"
 AIO_FEED_IDS = ["button1", "fan",'humi-info','temp-info','motion', 'light2']
 # URL = "http://127.0.0.1:8000/api/insertSensorData/"
-URL = "http://192.168.1.13:8000/api/insertSensorData/"
+URL = "http://192.168.1.97:8000/api/"
+URL_SENSOR = URL + "insertSensorData/"
+URL_DEVICE = URL + "controlDeviceFromGateway/"
 HEADERS = {"Content-Type":"application/json"}
 # =======
 # AIO_USERNAME = "your user name"
@@ -37,20 +41,28 @@ def disconnected(client):
 def message(client, feed_id, payload):
     # print("Receiver data from " + client + "/" + feed_id + " : " + payload)
     print("Receiver data from " + feed_id + " : " + payload)
-    if feed_id == "fan":
-        payload = "f" + payload
     
     if feed_id == 'humi-info':
-        send_request(payload, "Humid", "Hu", "Working Room")
+        # send_request(URL_SENSOR, 'post', payload, "Humid", "Hu", "Working Room")
+        send_request_1(URL_SENSOR, 'sensor', {"name":"Humid", "type": "Hu", "room":"Working Room", "value":payload})
     
     if feed_id == 'temp-info':
-        send_request(payload, "Temp", "Te", "Working Room")
-    
+        # send_request(URL_SENSOR, 'post', payload, "Temp", "Te", "Working Room")
+        send_request_1(URL_SENSOR, 'sensor', {"name":"Temp", "type": "Te", "room":"Working Room", "value":payload})
+
     if feed_id == 'motion':
-        send_request(payload, "Motion", "Mo", "Working Room")
+        # send_request(URL_SENSOR, 'post', payload, "Motion", "Mo", "Working Room")
+        send_request_1(URL_SENSOR, 'sensor', {"name":"Motion", "type": "Mo", "room":"Working Room", "value":payload})
 
     if feed_id == 'light2':
-        send_request(payload, "Light", "Li", "Working Room")
+        # send_request(URL_SENSOR, 'post', payload, "Light", "Li", "Working Room")
+        send_request_1(URL_SENSOR, 'sensor', {"name":"Light", "type": "Li", "room":"Working Room", "value":payload})
+
+    if feed_id == 'button1':
+        send_request_1(URL_DEVICE, 'device', {"name":"Den","value":payload})
+
+    if feed_id == 'fan':
+        send_request_1(URL_DEVICE, 'device', {"name":"Quat","value":payload})
 
     if isMicrobitConnected:
         ser.write((str(payload) + "#").encode())
@@ -130,7 +142,7 @@ def readSerial():
             else:
                 mess = mess[end + 1:]
 
-def send_request(payload, name, type, room):
+def send_request(url, payload, name, type, room):
     data = {
         "name" : name,
         "type": type,
@@ -138,8 +150,19 @@ def send_request(payload, name, type, room):
         "value": payload
     }
     print(data)
-    response = requests.post(url=URL, data=json.dumps(data), headers=HEADERS)
+    response = requests.post(url=url, data=json.dumps(data), headers=HEADERS)
     if response.status_code == 201:
+        print("Insert Successful!")
+    else:
+        print("Something went wrong!")
+
+def send_request_1(url, control, request):
+    if control == "device":
+        response = requests.put(url=url, data=json.dumps(request), headers=HEADERS)
+    else:
+        response = requests.post(url=url, data=json.dumps(request), headers=HEADERS)
+
+    if response.status_code == 201 or response.status_code == 200:
         print("Insert Successful!")
     else:
         print("Something went wrong!")

@@ -5,7 +5,7 @@ import json, requests
 from django.test import RequestFactory
 import asgiref.sync
 
-URL = "http://192.168.1.13:8000/api/"
+URL = "http://192.168.1.97:8000/api/"
 # URL = "http://127.0.0.1:8000/api/"
 URL_SENSOR = URL + "sensorsAction/"
 URL_DEVICES = URL + "devicesAction/"
@@ -13,6 +13,10 @@ URL_DEVICE_SCHEDULE = URL + "setDeviceAction/"
 URL_SESSION = URL + "addSessionRecord/"
 URL_GET_SESSION = URL + "getSessionRec/"
 URL_SCHEDULE = URL + "setDeviceAction/"
+URL_DEL_DEVICE_SCHEDULE = URL + "deleteDeviceAction/"
+URL_DEL_SESSION_SCHEDULE = URL + "deleteSession/"
+URL_GET_DEVICE_SUGGEST = URL + "getDeviceSuggest/"
+URL_LOGIN = URL + "login/"
 HEADERS = {"Content-Type":"application/json"}
 
 class MyConsumer(AsyncWebsocketConsumer):
@@ -35,6 +39,7 @@ class MyConsumer(AsyncWebsocketConsumer):
         # await post_signal.disconnect(self.handle_post_data_received)    
 
     async def receive(self, text_data):
+        print("\nRECEIVER: ", text_data)
         try:
             data = json.loads(text_data)
             # Process the data here
@@ -42,50 +47,116 @@ class MyConsumer(AsyncWebsocketConsumer):
             message = {}
 
             if messType == "RequestUpdateSensor":
-                message['Type'] = "UpdateSensor"
                 response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR)
-                message['Data'] = self.process_all_sensor_data(response)
+                message = self.process_all_sensor_data(response)
+                message['Type'] = "UpdateSensor"
             elif messType == "RequestUpdateTempSensor":
-                message['Type'] = "UpdateTempSensor"
                 response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR + "?name=Temp")
                 message['Data'] = self.process_all_sensor_data(response)
-            elif messType == "RequestUpdateHumidSensor":
-                message['Type'] = "UpdateHumidSensor"
+                message['Type'] = "UpdateTempSensor"
+            elif messType == "RequestUpdateHumiSensor":
                 response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR + "?name=Humid")
                 message['Data'] = self.process_all_sensor_data(response)
+                message['Type'] = "UpdateHumiSensor"
             elif messType == "RequestUpdateLightSensor":
-                message['Type'] = "UpdateLightSensor"
                 response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR + "?name=Light")
                 message['Data'] = self.process_all_sensor_data(response)
+                message['Type'] = "UpdateLightSensor"
             elif messType == "RequestUpdateMotionSensor":
-                message['Type'] = "UpdateMotionSensor"
                 response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR + "?name=Motion")
                 message['Data'] = self.process_all_sensor_data(response)
+                message['Type'] = "UpdateMotionSensor"
+            elif messType == "RequestDeviceStatus":
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_DEVICES)
+                message['Type'] = "DeviceInit"
+                message['Data'] = []
+                res_obj = json.loads(response.text)
+                for ele in res_obj:
+                    data = {
+                        "Device":ele['name'],
+                        "Value":ele['value']
+                    }
+                    message['Data'].append(data)
+
+
             elif messType == "RequestDeviceControl":
                 message['Type'] = "DeviceControl"
-                device_id = data['Device_id']
+                device_name = data['Device']
                 value = data['Value']
                 payload = {
+                    "name": device_name,
                     "value": value
                 }
-                response = await asgiref.sync.sync_to_async(requests.put)(URL_DEVICES + f"{device_id}/", json=payload, headers=HEADERS)
+                response = await asgiref.sync.sync_to_async(requests.put)(URL_DEVICES, json=payload, headers=HEADERS)
                 message['Data'] = json.loads(response.text)
             elif messType == "RequestScheduleBook":
                 message['Type'] = "ScheduleBook"
-                payload = data['Data']
+                payload = {
+                    "user_id":data['UserID'],
+                    "time_start": data['time_start'],
+                    "time_end": data['time_end'],
+                    "work_inter": data['work_inter'],
+                    "rest_inter": data['rest_inter']
+                }
                 response = await asgiref.sync.sync_to_async(requests.post)(URL_SESSION, json=payload, headers=HEADERS)
                 message['Data'] = json.loads(response.text)
             elif messType == "RequestSchedule":
                 message['Type'] = "Schedule"
-                if len(data) > 1:
-                    response = await asgiref.sync.sync_to_async(requests.get)(URL_GET_SESSION + str(data['Id']) + "/")
-                else:
-                    response = await asgiref.sync.sync_to_async(requests.get)(URL_GET_SESSION)
+                payload = {
+                    "user_id": data['UserID']
+                }
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_GET_SESSION, json=payload)
                 message['Data'] = json.loads(response.text)
             elif messType == "RequestDeviceTimerBook":
                 message['Type'] = "DeviceTimerBook"
-                response = await asgiref.sync.sync_to_async(requests.get)(URL_DEVICE_SCHEDULE + "?device_id=" + str(data['Id']))
+                payload = {
+                    "device_name": data["Device"],
+                    "user_id": data["UserID"],
+                    "value": data["Value"],
+                    "time_stamp": data["TimeStart"]
+                }
+                response = await asgiref.sync.sync_to_async(requests.post)(URL_DEVICE_SCHEDULE, json=payload)
                 message['Data'] = json.loads(response.text)
+            elif messType == "RequestDeviceTimerSchedule":
+                message['Type'] = "DeviceTimerSchedule"
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_DEVICE_SCHEDULE + "?user_id=" + str(data['UserID']))
+                res_obj = json.loads(response.text)
+                message['Data'] = []
+                for ele in res_obj:
+                    data = {
+                        "Device": ele['device_name'],
+                        "Value": ele['value'],
+                        "TimeStart": ele['time_stamp']
+                    }
+                    message['Data'].append(data)
+            elif messType == "RequestDeviceTimerDelete":
+                message['Type'] = "DeviceTimerDelete"
+                payload = {
+                    "position": data['Position']
+                }
+                response = await asgiref.sync.sync_to_async(requests.delete)(URL_DEL_DEVICE_SCHEDULE + str(data['UserID']) + "/", json=payload)
+            elif messType == "RequestScheduleDelete":
+                message['Type'] = "ScheduleDelete"
+                payload = {
+                    "position": data['Position']
+                }
+                response = await asgiref.sync.sync_to_async(requests.delete)(URL_DEL_SESSION_SCHEDULE + str(data['UserID']) + "/", json=payload)
+            elif messType == "RequestDeviceTimerSuggest":
+                message['Type'] = 'DeviceTimerSuggest'
+                URL_PREP = URL_GET_DEVICE_SUGGEST + "?UserID=" + str(data['UserID']) + "&Device=" + data['Device'] + "&Value=" + str(data["Value"])
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_PREP)
+                res_obj = json.loads(response.text)
+                for i in range(0,len(res_obj)):
+                    message["time" + str(i + 1)] = res_obj[i]['time_stamp']
+            elif messType == "RequestLogIn":
+                message['Type'] = 'LogIn'
+                payload = {
+                    'username':data['Username'],
+                    'password':data['Password']
+                }
+                response = await asgiref.sync.sync_to_async(requests.post)(URL_LOGIN, json=payload)
+                message['UserID'] = int(response.text)
+
             await self.send(json.dumps(message))
         except ValueError:
             # The message is not valid JSON
@@ -95,6 +166,11 @@ class MyConsumer(AsyncWebsocketConsumer):
         message = event['message']
         print(message)
         await self.send(json.dumps(message))
+    
+    async def send_request(self, event):
+        message = event['message']
+        print(message)
+        await self.receive
 
     def process_all_sensor_data(self, response):
         message = {}
