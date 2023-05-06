@@ -97,7 +97,8 @@ DATABASES = {
     # }
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'iot_2',
+        'NAME': 'iot',
+        # 'NAME': 'iot_1',
         'USER': 'root',
         'PASSWORD': '123456',
         'HOST': '127.0.0.1',
@@ -131,7 +132,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Asia/Bangkok'
-DATETIME_FORMAT = '%d-%m-%Y %H:%M:%S' 
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S' 
 
 USE_I18N = True
 

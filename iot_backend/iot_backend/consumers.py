@@ -5,11 +5,13 @@ import json, requests
 from django.test import RequestFactory
 import asgiref.sync
 
-URL = "http://192.168.1.97:8000/api/"
+URL = "http://192.168.137.38:8000/api/"
 # URL = "http://127.0.0.1:8000/api/"
 URL_SENSOR = URL + "sensorsAction/"
+URL_SENSOR_DATA = URL + "getSensorData/"
 URL_DEVICES = URL + "devicesAction/"
 URL_DEVICE_SCHEDULE = URL + "setDeviceAction/"
+URL_DEVICE_HST = URL + "deviceUsageHist/"
 URL_SESSION = URL + "addSessionRecord/"
 URL_GET_SESSION = URL + "getSessionRec/"
 URL_SCHEDULE = URL + "setDeviceAction/"
@@ -17,6 +19,7 @@ URL_DEL_DEVICE_SCHEDULE = URL + "deleteDeviceAction/"
 URL_DEL_SESSION_SCHEDULE = URL + "deleteSession/"
 URL_GET_DEVICE_SUGGEST = URL + "getDeviceSuggest/"
 URL_LOGIN = URL + "login/"
+URL_AUTOCHECK = URL + "checkSetDeviceTimeVsCurrentTime/"
 HEADERS = {"Content-Type":"application/json"}
 
 class MyConsumer(AsyncWebsocketConsumer):
@@ -74,7 +77,8 @@ class MyConsumer(AsyncWebsocketConsumer):
                 for ele in res_obj:
                     data = {
                         "Device":ele['name'],
-                        "Value":ele['value']
+                        "Value":ele['value'],
+                        "Active":ele['active']
                     }
                     message['Data'].append(data)
 
@@ -85,10 +89,12 @@ class MyConsumer(AsyncWebsocketConsumer):
                 value = data['Value']
                 payload = {
                     "name": device_name,
-                    "value": value
+                    "value": value,
                 }
                 response = await asgiref.sync.sync_to_async(requests.put)(URL_DEVICES, json=payload, headers=HEADERS)
                 message['Data'] = json.loads(response.text)
+                
+
             elif messType == "RequestScheduleBook":
                 message['Type'] = "ScheduleBook"
                 payload = {
@@ -156,6 +162,23 @@ class MyConsumer(AsyncWebsocketConsumer):
                 }
                 response = await asgiref.sync.sync_to_async(requests.post)(URL_LOGIN, json=payload)
                 message['UserID'] = int(response.text)
+            elif messType == "RequestSensorData":
+                message['Type'] = "SensorData"
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_SENSOR_DATA + "?Sensor=" + str(data['Sensor']))
+                message['Data'] = json.loads(response.text)
+            elif messType == "RequestAddDeviceHistory":
+                message['Type'] = "AddDeviceHistory"
+                payload = {
+                    "UserID": data['UserID'],
+                    "Device": data['Device'],
+                    "value": data['Value'],
+                    "time_stamp": data['TimeStamp']
+                }
+                response = await asgiref.sync.sync_to_async(requests.post)(URL_DEVICE_HST, json=payload)
+            elif messType == "RequestAutoCheckTimeStartInSetDevice":
+                message['Type'] = "AutoCheckTimeStartInSetDevice"
+                response = await asgiref.sync.sync_to_async(requests.get)(URL_AUTOCHECK)
+
 
             await self.send(json.dumps(message))
         except ValueError:

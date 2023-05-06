@@ -17,12 +17,14 @@ from django.contrib.auth.hashers import make_password, check_password, MD5Passwo
 from Adafruit_IO import MQTTClient
 from datetime import datetime, date
 import json, schedule, subprocess, time
+import pytz
 
 AIO_USERNAME = "LamVinh"
-AIO_KEY = "aio_HUyW98JRfR6disI1VkEDqEZ9f7G0"
+AIO_KEY = "aio_Ikez49d4P246pxMzFVEajaKqqH7S"
 AIO_FEED = {
     "Fan" : "fan",
-    "Light" : "button1"
+    "Light" : "button1",
+    "password": "password"
 }
 
 client = MQTTClient(AIO_USERNAME, AIO_KEY)
@@ -62,13 +64,20 @@ class UserLoginView(APIView):
     def post(self, request):
         username = request.data.get('username', None)
         password = request.data.get('password', None)
-        user = User.objects.filter(username=username).first()
+        md5_password = hashlib.md5(password.encode()).hexdigest()
+        user = User.objects.filter(username=username, password=md5_password).first()
         if user is None:
             return Response({'detail': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-        if not user.check_password(password):
-            return Response({'detail': 'Invalid Password'}, status=status.HTTP_401_UNAUTHORIZED)
-        serializer = UserSerializer(user)
-        return Response(serializer.data['id'], status=status.HTTP_200_OK)
+        # if not user.check_password(password):
+        #     return Response({'detail': 'Invalid Password'}, status=status.HTTP_401_UNAUTHORIZED)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'user_id': user.pk,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+        
+
 
 
 class UserLogoutView(TokenViewBase):
@@ -114,28 +123,31 @@ class ChangePasswordView(APIView):
 class DevicesActionView(APIView):
     
     def get(self, request, pk=None):
-        if pk is not None:
-            sensor = Devices.objects.get(pk=pk)
-            serializer = SensorsSerializer(sensor)
+        try:
+            if pk is not None:
+                sensor = Devices.objects.get(pk=pk)
+                serializer = DevicesSerializer(sensor)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            id = request.query_params.get('id')
+            room = request.query_params.get('room')
+            name = request.query_params.get('name')
+            type = request.query_params.get('type')
+            active = request.query_params.get('active')
+            devices = Devices.objects.all()
+            if id:
+                devices = devices.filter(id=id)
+            if room:
+                devices = devices.filter(room=room)
+            if name:
+                devices = devices.filter(name=name)
+            if type:
+                devices = devices.filter(type=type)
+            if active:
+                devices = devices.filter(active=active)
+            serializer = DevicesSerializer(devices, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        id = request.query_params.get('id')
-        room = request.query_params.get('room')
-        name = request.query_params.get('name')
-        type = request.query_params.get('type')
-        active = request.query_params.get('active')
-        devices = Devices.objects.all()
-        if id:
-            devices = devices.filter(id=id)
-        if room:
-            devices = devices.filter(room=room)
-        if name:
-            devices = devices.filter(name=name)
-        if type:
-            devices = devices.filter(type=type)
-        if active:
-            devices = devices.filter(active=active)
-        serializer = DevicesSerializer(devices, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        except Devices.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request):
         """payload:
@@ -154,14 +166,17 @@ class DevicesActionView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk=None):
-        if pk is not None:
-            device = self.get_object(pk)
-            payload = request.data
-        else:
-            device = Devices.objects.filter(name=request.data.get('name')).first()
-            payload = {
-                "value": request.data.get('value')
-            }
+        try:
+            if pk is not None:
+                device = Devices.objects.get(pk=pk)
+                payload = request.data
+            else:
+                device = Devices.objects.filter(name=request.data.get('name')).first()
+                payload = {
+                    "value": request.data.get('value')
+                }
+        except Devices.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = DevicesSerializer(device, data=payload, partial=True)        
         if serializer.is_valid():
             print(serializer)
@@ -171,6 +186,8 @@ class DevicesActionView(APIView):
                 client.publish(AIO_FEED['Fan'], request.data.get('value'))
             if device.type == "Sw":
                 client.publish(AIO_FEED['Light'], request.data.get('value'))
+            if device.type == "Ser":
+                client.publish(AIO_FEED['password'], request.data.get('value'))
             client.disconnect()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -217,10 +234,13 @@ class DeviceHstAction(APIView):
 
 class ControlDeviceFromMQTT(APIView):
     def put(self, request, pk=None):
-        if pk is not None:
-            device = Devices.objects.get(pk=pk)
-        else:
-            device = Devices.objects.filter(name=request.data.get('name')).first()
+        try:
+            if pk is not None:
+                device = Devices.objects.get(pk=pk)
+            else:
+                device = Devices.objects.filter(name=request.data.get('name')).first()
+        except Devices.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         data = {
             'value':request.data.get('value')
         }
@@ -243,6 +263,33 @@ class ControlDeviceFromMQTT(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # serializer_class = DevicesSerializer
+
+class ControlServo(APIView):
+    def put(self, request, pk=None):
+        if pk is not None:
+            device = Devices.objects.get(pk=pk)
+        else:
+            device = Devices.objects.filter(name=request.data.get('name')).first()
+        data = {
+            'active':request.data.get('value')
+        }
+        serializer = DevicesSerializer(device, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "my_group",
+                {
+                    'type':'send_message',
+                    'message': {
+                        "Type":"ServoControl",
+                        "Device": request.data.get('name'),
+                        "Value": request.data.get('value')
+                    }
+                }
+            )
+            return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
        
 class SensorActionView(APIView):
     def get_object(self, pk):
@@ -320,7 +367,7 @@ class CreateSensorDataView(APIView):
                     sensor = Sensors.objects.filter(name=sensor_name, type=sensor_type, room=sensor_in_room).first()
                     # sensor = Sensors.objects.get(id=sensor_id)
                 except Sensors.DoesNotExist:
-                    return Response({"errors":"Invalid Sensor ID!"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"errors":"Sensor not found!"}, status=status.HTTP_404_NOT_FOUND)
                 sensor.value = newValue
                 sensor.save()
                 serializer.save(sensor=sensor)
@@ -350,9 +397,24 @@ class CreateSensorDataView(APIView):
                 # print(sended)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
-                return Response({"errors":"Sensor Id not found!"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"errors":"Sensor name not found!"}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class SensorDataView(APIView):
+    def get(self, request, pk=None):
+        try:
+            if pk is not None:
+                sensor_data = SensorData.objects.get(pk=pk)
+                serializer = SensorDataSerializer(sensor_data, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            sensor_name = request.query_params.get('Sensor')
+            sensor = Sensors.objects.filter(name=sensor_name).first()
+            sensor_data = SensorData.objects.filter(sensor_id=sensor.pk).order_by("-time_stamp")
+            serializer = SensorDataSerializer(sensor_data, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
 class SessionRecordView(APIView):
     def get(self, request, pk=None):
         try:
@@ -424,21 +486,25 @@ class SetDeviceView(APIView):
             raise Http404
         
     def get(self, request, pk=None):
-        if pk is not None:
-            device_usage = self.get_object(pk=pk)
-            serializer = SetDeviceSerializer(device_usage)
+        try:
+            if pk is not None:
+                device_usage = self.get_object(pk=pk)
+                serializer = SetDeviceSerializer(device_usage)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            user_id = request.query_params.get('user_id')
+            device_name = request.query_params.get('device_name')
+            device_scheduled = SetDevice.objects.all()
+            if user_id:
+                user_obj = User.objects.filter(id=user_id).first()
+                device_scheduled = device_scheduled.filter(user=user_obj)
+            if device_name:
+                device_obj = Devices.objects.filter(name=device_name).first()
+                device_scheduled = device_scheduled.filter(device=device_obj)
+            serializer = SetDeviceSerializer(device_scheduled, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        user_id = request.query_params.get('user_id')
-        device_name = request.query_params.get('device_name')
-        device_scheduled = SetDevice.objects.all()
-        if user_id:
-            user_obj = User.objects.filter(id=user_id).first()
-            device_scheduled = device_scheduled.filter(user=user_obj)
-        if device_name:
-            device_obj = Devices.objects.filter(name=device_name).first()
-            device_scheduled = device_scheduled.filter(device=device_obj)
-        serializer = SetDeviceSerializer(device_scheduled, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        except SetDevice.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
 
     def post(self, request):
         """
@@ -529,12 +595,61 @@ class DeviceAutoSuggest(APIView):
         serializer = DeviceAutoSerializer(device_auto, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
+class AutoCheckDeviceScheduled(APIView):
+    def get(self, request):
+        print("*******CALL API CHECKING*******\n")
+        should_stop = False
+        minutes_loop = 1
+        print(f"*******INTERVAL: {minutes_loop}*******\n")
+        def check(should_stop):
+            print("*******CHECKING*******")
+            device_set_list = SetDevice.objects.all().order_by('time_stamp')
+            if len(device_set_list) > 0:
+                serializer = SetDeviceSerializer(device_set_list[0])
+                current_date = datetime.now()
+                current_date_obj = datetime.strptime(current_date.strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+                print("CURR_DATE: ", current_date_obj)
+                device_set_date_obj = device_set_list[0].time_stamp
+                print("DEVICE_TIMESTAMP: ", device_set_date_obj)
+                checkDate = False
+                if current_date_obj.date() == device_set_date_obj.date():
+                    if current_date_obj.time() >= device_set_date_obj.time():
+                        checkDate = True
+                        # Call API Update value
+                elif current_date_obj.date() > device_set_date_obj.date():
+                    checkDate = True
+                # Set time interval
+
+                if checkDate:
+                    message = {
+                        "Type":"RequestDeviceControlAuto",
+                        "Device": serializer.data['device_name'],
+                        "Value": str(serializer.data['value'])
+                    }
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        "my_group",
+                        {
+                            'type':'send_message',
+                            'message': message
+                        }
+                    )
+                    print("*******DELETING*******\n", json.dumps(message))
+                    # device_set_list[0].delete()
+            else:
+                should_stop = True
+        
+        schedule.every(minutes_loop).minutes.do(check, should_stop=should_stop)
+
+        while not should_stop:
+            schedule.run_pending()
+            time.sleep(1)
+        return ("*******STOP CHECKING*******\n")
 
 class CheckDeviceSchedAvailableToEnable(APIView):
     def get(self, request):
         print("*******CALL API CHECKING*******")
-
-        schedule.every(30).seconds.do(CheckUtils.check)
+        schedule.every(30).minutes.do(CheckUtils.check)
         while True:
             schedule.run_pending()
             # setDeviceList = SetDevice.objects.all()
@@ -579,5 +694,5 @@ class CheckUtils():
                     }
                 )
                 print("*******DELETING*******\n", json.dumps(message))
-                # device_set_list[0].delete()
+                device_set_list[0].delete()
                     

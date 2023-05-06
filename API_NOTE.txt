@@ -35,12 +35,12 @@
     + URL: http://127.0.0.1:8000/api/addSessionRecord/
     + Method: POST
     + Payload: JSON
-        {
-            "username":"hiepngo",
-            "time_start":1683093600,
-            "time_end":	1683104400,
-            "work_inter": "50",
-            "rest_inter": "10"
-        }
+{
+    "username":"hiepngo",
+    "time_start":1683093600,
+    "time_end":	1683104400,
+    "work_inter": "50",
+    "rest_inter": "10"
+}
 
 

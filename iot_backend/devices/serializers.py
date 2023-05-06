@@ -29,10 +29,11 @@ class DeviceHstSerializer(ModelSerializer):
         fields = '__all__'
 
 class SensorDataSerializer(ModelSerializer):
+    time_stamp = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
     # sensor = SensorsSerializer()
     class Meta:
         model = SensorData
-        fields = '__all__'
+        fields = ['value','time_stamp']
 
 class CreateSensorDataSerializer(ModelSerializer):
     class Meta:
@@ -62,9 +63,10 @@ class UserSerializer(ModelSerializer):
 class UserLoginSerializer(ModelSerializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True)
+    
     class Meta:
         model = User
-        fields = ('username','password')
+        fields =('username','password')
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)

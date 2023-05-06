@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.exceptions import ValidationError
+import hashlib
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from django.utils.translation import gettext_lazy as _
 # class User(AbstractUser):
@@ -27,6 +28,9 @@ class User(AbstractUser):   #devices_user
     username = models.CharField(max_length=100, null=False, unique=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    def check_password(self, raw_password: str) -> bool:
+        encoded_password = hashlib.md5(raw_password.encode()).hexdigest()
+        return self.password == encoded_password
 
 class OutstandingToken(models.Model):
     jti = models.CharField(max_length=255, unique=True)
@@ -47,7 +51,7 @@ class Devices(models.Model):    #devices_devices
     type = models.CharField(max_length=10, choices=TYPE_CHOICES)
     # type = models.CharField(max_length=10, null=False)
     active = models.BooleanField(null=False, default=False)
-    value = models.DecimalField(null=True, max_digits=5, decimal_places=3)
+    value = models.DecimalField(null=True, max_digits=10, decimal_places=3)
     room = models.CharField(max_length=100, null=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)

@@ -10,6 +10,8 @@ router = DefaultRouter()
 urlpatterns = [
     path('', include(router.urls)),
     path('insertSensorData/', CreateSensorDataView.as_view(), name='insertSensorData'),
+    path('getSensorData/<int:pk>', SensorDataView.as_view(), name='get_sensor_data_by_view'),
+    path('getSensorData/', SensorDataView.as_view(), name='get_sensor_data'),
     path('updateDevicesView/<int:pk>/', DevicesActionView.as_view()),
     path('devicesAction/', DevicesActionView.as_view()),
     path('devicesAction/<int:pk>/', DevicesActionView.as_view()),
@@ -29,11 +31,13 @@ urlpatterns = [
     path('deleteDeviceAction/<int:my_field_value>/', DeleteSetDevice.as_view(), name='delete_device_by_id'),
     path('deleteSession/<int:my_field_value>/', DeleteSetSession.as_view(), name='delete_session_by_userid'),
     path('checkSetDeviceTimeVsCurrentTime/', CheckDeviceSchedAvailableToEnable.as_view(), name='check_time_stamp_in_set_device'),
+    path('checkSetDeviceTimeVsCurrentTime/', AutoCheckDeviceScheduled.as_view(), name='check_time_stamp_in_set_device'),
     path('getDeviceSuggest/', DeviceAutoSuggest.as_view(), name='get_device_auto'),
     path('getDeviceSuggest/<int:pk>/', DeviceAutoSuggest.as_view(), name='get_device_auto_by_pk'),
     path('addDeviceAuto/', DeviceAutoView.as_view(), name='add_device_auto'),
     path('controlDeviceFromGateway/', ControlDeviceFromMQTT.as_view(), name='control_device_from_gateway'),
     path('deviceUsageHist/', DeviceHstAction.as_view(), name='get_device_usage'),
     path('deviceUsageHist/<int:pk>/', DeviceHstAction.as_view(), name='get_device_usage_by_pk'),
+    path('controlServo/', ControlServo.as_view(), name='control_servo'),
 
 ]
