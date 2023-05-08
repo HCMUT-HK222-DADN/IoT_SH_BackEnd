@@ -16,7 +16,7 @@ class MyConsumer(AsyncWebsocketConsumer):
             # Process the data in case of the messType
             if messType == "RequestUpdateSensor":
                 message = {
-                    'Type': "UpdateSenSor",
+                    'Type': "UpdateSenor",
                     'Temp': 20,
                     'Humi': 20,
                     'Light': 20,

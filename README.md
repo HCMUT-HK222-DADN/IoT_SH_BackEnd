@@ -26,3 +26,8 @@
 ```
     python manage.py runserver
 ```
+
+# Run Websocket
+```
+daphne -b {your_ip} iot_backend.asgi:application
+```
